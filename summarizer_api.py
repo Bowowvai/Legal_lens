@@ -92,7 +92,7 @@ app.add_middleware(
 
 summarizer = None
 
-# Initialize chatbot (OpenAI-compatible); optional dependency
+# Initialize chatbot (DeepSeek v3); optional dependency
 try:
     from chatbot_service import ChatbotService
     CHATBOT = ChatbotService()
@@ -607,10 +607,10 @@ async def analyze_pdf(
 
 
 @app.post("/chatbot/ask")
-async def chatbot_ask(payload: dict, x_openai_api_key: Optional[str] = Header(default=None)):
+async def chatbot_ask(payload: dict, x_deepseek_api_key: Optional[str] = Header(default=None)):
     """Answer a user question using the context of the current summary and/or source text.
 
-    Always returns an answer: uses GPT when available, falls back to a local extractive method otherwise.
+    Always returns an answer: uses DeepSeek v3 when available, falls back to a local extractive method otherwise.
     """
     import re as _re
     question = (payload.get("question") or "").strip()
@@ -629,7 +629,7 @@ async def chatbot_ask(payload: dict, x_openai_api_key: Optional[str] = Header(de
             svc = None
     if svc is not None:
         try:
-            ans = svc.answer(question, summary=summary, source_text=source_text, api_key_override=x_openai_api_key)
+            ans = svc.answer(question, summary=summary, source_text=source_text, api_key_override=x_deepseek_api_key)
             if ans:
                 return {"answer": ans}
         except Exception:

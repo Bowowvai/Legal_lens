@@ -20,22 +20,22 @@ def _split_sentences(text: str) -> list[str]:
 class ChatbotConfig:
     api_key: Optional[str] = None
     base_url: Optional[str] = None
-    model: str = os.getenv("OPENAI_MODEL", "gpt-5-chat")
+    model: str = os.getenv("DEEPSEEK_V3_MODEL", "deepseek-chat")
 
 
 class ChatbotService:
     def __init__(self, config: Optional[ChatbotConfig] = None):
         self.config = config or ChatbotConfig(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL"),
-            model=os.getenv("OPENAI_MODEL", "gpt-5-chat"),
+            api_key=os.getenv("DEEPSEEK_V3_API_KEY"),
+            base_url=os.getenv("DEEPSEEK_V3_BASE_URL", "https://api.deepseek.com"),
+            model=os.getenv("DEEPSEEK_V3_MODEL", "deepseek-chat"),
         )
         self._client = None
         self._available = False
         self._embedder = None
         self._embed_available = False
         try:
-            from openai import OpenAI  # type: ignore
+            from openai import OpenAI  # type: ignore (OpenAI-compatible client for DeepSeek v3)
             # Create client if env key exists; otherwise remain unavailable
             if self.config.api_key:
                 if self.config.base_url:
@@ -44,7 +44,7 @@ class ChatbotService:
                     self._client = OpenAI(api_key=self.config.api_key)
                 self._available = True
         except Exception:
-            # openai package not installed or init failed
+            # openai package not installed or init failed (DeepSeek v3 uses OpenAI-compatible API)
             self._available = False
 
         # Try to set up a local embedder for retrieval (optional but improves accuracy)
@@ -107,7 +107,7 @@ class ChatbotService:
                 # optional per-request key (header value forwarded by API layer)
                 client = self._client
                 if api_key_override:
-                    from openai import OpenAI  # type: ignore
+                    from openai import OpenAI  # type: ignore (OpenAI-compatible client for DeepSeek v3)
                     if self.config.base_url:
                         client = OpenAI(api_key=api_key_override, base_url=self.config.base_url)
                     else:
