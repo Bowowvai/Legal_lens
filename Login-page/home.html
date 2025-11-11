@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Themis Analytica — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .profile-menu { display: none; position: absolute; right: 0; top: 100%; background:#fff; box-shadow: 0 4px 12px rgba(0,0,0,.1); border-radius:.5rem; z-index: 30; min-width: 220px; }
+    .profile:hover .profile-menu { display: block; }
+    .document-upload:hover .upload-options { display: block; }
+    .upload-options { display:none; position:absolute; right:0; top:100%; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,.1); border-radius:.5rem; z-index:30; min-width:220px; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    .tab-button.active { border-bottom: 2px solid #3b82f6; color:#3b82f6; }
+    .document-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+    .toast { position: fixed; bottom: 16px; right: 16px; background: #111827; color: #fff; padding: 10px 14px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.2); opacity: 0; transform: translateY(8px); transition: all .25s ease; z-index: 50; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+  <!-- Config and Supabase -->
+  <script src="./config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- PDF.js for custom PDF rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js"></script>
+  <!-- Removed client-side Transformers.js; using Python API instead -->
+  <script>
+    const supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  // Local API base (change if you run the server on another port/host)
+  const API_BASE = (window.API_BASE || 'http://127.0.0.1:8000');
+    const initialsFrom = (v) => {
+      const s = (v||'').trim(); if (!s) return '--';
+      const p = s.split(/\s+/).filter(Boolean); if (p.length>1) return (p[0][0]+p[1][0]).toUpperCase();
+      return s[0].toUpperCase();
+    };
+  </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white shadow-sm py-4 px-6 flex justify-between items-center">
+    <div class="flex items-center">
+      <i class="fas fa-balance-scale text-blue-500 text-2xl mr-3"></i>
+  <h1 class="text-xl font-bold text-gray-800">Themis Analytica — AI Law Summarizer</h1>
+  <span id="api-status" class="ml-4 text-sm px-2 py-1 rounded-full bg-red-100 text-red-700">API: Offline</span>
+    </div>
+
+    <div class="flex items-center space-x-4">
+      <!-- Document Upload Button -->
+      <div class="document-upload relative">
+        <button id="uploadMenuBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+          <i class="fas fa-upload mr-2"></i>
+          Upload Document
+        </button>
+        <div class="upload-options p-2">
+          <button id="file-upload-btn" class="w-full text-left px-4 py-2 hover:bg-gray-100 rounded flex items-center">
+            <i class="fas fa-file-alt mr-2 text-blue-500"></i> Upload File
+          </button>
+          <button id="paste-text-btn" class="w-full text-left px-4 py-2 hover:bg-gray-100 rounded flex items-center">
+            <i class="fas fa-paste mr-2 text-blue-500"></i> Paste Text
+          </button>
+        </div>
+        <input type="file" id="file-input" class="hidden" accept=".pdf,.doc,.docx,.txt">
+      </div>
+
+      <!-- Profile Section -->
+      <div class="profile relative">
+        <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white cursor-pointer">
+          <span id="profile-initials" class="font-medium">--</span>
+        </div>
+        <div class="profile-menu">
+          <div class="p-4 border-b">
+            <p id="profile-name" class="font-medium">Loading…</p>
+            <p id="profile-email" class="text-sm text-gray-500 break-all"></p>
+            <div class="mt-2 text-sm text-gray-700 space-y-1">
+              <p>Documents: <span id="profile-doc-count">0</span></p>
+              <p>Summaries: <span id="profile-sum-count">0</span></p>
+            </div>
+          </div>
+          <div class="p-2">
+            <a id="profile-link" href="#" class="block px-4 py-2 hover:bg-gray-100 rounded">Profile</a>
+            <a id="settings-link" href="#" class="block px-4 py-2 hover:bg-gray-100 rounded">Settings</a>
+            <button id="logoutBtn" class="w-full text-left px-4 py-2 hover:bg-gray-100 rounded text-red-600">Logout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container mx-auto px-4 py-6">
+    <div class="flex main-content gap-4">
+      <!-- Sidebar -->
+      <aside class="sidebar w-full md:w-1/4 md:pr-4">
+        <div class="bg-white rounded-lg shadow p-4">
+          <h2 class="text-lg font-semibold mb-4">Recent Documents</h2>
+          <!-- Empty state; populated from Supabase -->
+          <div id="recent-list" class="text-sm text-gray-500">Loading…</div>
+        </div>
+      </aside>
+
+      <!-- Document Viewer -->
+      <section class="document-viewer w-full md:w-3/4 bg-white rounded-lg shadow">
+        <div class="border-b">
+          <div class="flex tab-buttons">
+            <button class="tab-button active px-6 py-3 font-medium" data-tab="summary">Summary</button>
+            <button class="tab-button px-6 py-3 font-medium" data-tab="view">View</button>
+            <button class="tab-button px-6 py-3 font-medium" data-tab="analysis">Analysis</button>
+            <button class="tab-button px-6 py-3 font-medium" data-tab="references">References</button>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <!-- Summary Tab -->
+          <div id="summary" class="tab-content active">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-xl font-bold">Document Summary</h2>
+              <div class="flex space-x-2">
+                <button id="save-btn" class="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                  <i class="fas fa-bookmark mr-2"></i> Save
+                </button>
+                <button id="export-btn" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                  <i class="fas fa-download mr-2"></i> Export
+                </button>
+                <button id="share-btn" class="bg-green-50 text-green-600 px-4 py-2 rounded-lg flex items-center">
+                  <i class="fas fa-share-alt mr-2"></i> Share
+                </button>
+              </div>
+            </div>
+
+            <div id="summary-info" class="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6 hidden">
+              <div class="flex items-start">
+                <i class="fas fa-info-circle text-blue-500 mt-1 mr-3"></i>
+                <div>
+                  <p class="font-medium text-blue-700">AI-generated summary</p>
+                  <p class="text-sm text-blue-600">Created locally from your provided text.</p>
+                </div>
+              </div>
+            </div>
+
+            <div id="summary-content" class="prose max-w-none text-gray-800"></div>
+          </div>
+
+          <!-- View Tab -->
+          <div id="view" class="tab-content">
+            <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+              <h2 class="text-xl font-bold">Document Viewer</h2>
+              <div class="flex gap-2 items-center">
+                <button id="search-toggle" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-lg flex items-center">
+                  <i class="fas fa-search mr-2"></i> Search
+                </button>
+                <button id="highlight-toggle" class="bg-blue-50 text-blue-600 px-3 py-2 rounded-lg flex items-center">
+                  <i class="fas fa-highlighter mr-2"></i> Highlight
+                </button>
+                <button id="ocr-analyze-btn" class="bg-purple-50 text-purple-700 px-3 py-2 rounded-lg flex items-center" title="OCR + Gemini analyze for PDFs">
+                  <i class="fas fa-wand-magic-sparkles mr-2"></i> OCR Analyze (PDF)
+                </button>
+                <button id="summarize-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+                  <i class="fas fa-robot mr-2"></i> Generate Summary
+                </button>
+              </div>
+            </div>
+
+            <!-- Search bar (hidden by default) -->
+            <div id="search-bar" class="hidden mb-3 flex items-center gap-2">
+              <input id="search-input" type="text" placeholder="Find..." class="border rounded px-3 py-2 w-full md:w-64" />
+              <button id="find-prev" class="px-3 py-2 border rounded">Prev</button>
+              <button id="find-next" class="px-3 py-2 border rounded">Next</button>
+              <span id="search-count" class="text-sm text-gray-500 ml-2"></span>
+            </div>
+
+            <div class="grid gap-3">
+              <!-- Text view -->
+              <textarea id="document-text" class="w-full h-80 p-3 bg-white border rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Paste your legal document text here or upload a file..."></textarea>
+              <!-- Highlight view -->
+              <div id="highlight-view" class="hidden w-full h-80 p-3 bg-gray-50 border rounded overflow-auto whitespace-pre-wrap"></div>
+              <!-- Iframe view for PDFs/Docs -->
+              <iframe id="doc-frame" class="hidden w-full h-96 bg-white border rounded" referrerpolicy="no-referrer" allow="fullscreen"></iframe>
+            </div>
+          </div>
+
+          <!-- Analysis Tab -->
+          <div id="analysis" class="tab-content">
+            <h2 class="text-xl font-bold mb-4">Legal Analysis</h2>
+            <div class="grid gap-4">
+              <div class="bg-gray-50 p-4 rounded border">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="font-semibold">Ask the document</h3>
+                </div>
+                <p class="text-xs text-gray-600 mb-3">Ask questions grounded in the current summary and text.</p>
+                <div class="flex gap-2 mb-2">
+                  <input id="qa-input" class="flex-1 border rounded px-3 py-2" type="text" placeholder="e.g., What are the parties and the effective date?"/>
+                  <button id="qa-ask" class="bg-blue-600 text-white px-4 py-2 rounded">Ask</button>
+                </div>
+                <div id="qa-answer" class="min-h-16 text-gray-800 whitespace-pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- References Tab -->
+          <div id="references" class="tab-content">
+            <h2 class="text-xl font-bold mb-6">Related References</h2>
+            <p class="text-gray-600">Add references as needed.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Paste Text Modal -->
+  <div id="paste-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+      <div class="p-4 border-b flex justify-between items-center">
+        <h3 class="text-lg font-semibold">Paste Legal Document Text</h3>
+        <button id="close-paste-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <textarea id="paste-text-area" class="w-full h-64 p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-200" placeholder="Paste your legal document text here..."></textarea>
+      </div>
+      <div class="p-4 border-t flex justify-end space-x-3">
+        <button id="cancel-paste-btn" class="px-4 py-2 border rounded-lg hover:bg-gray-100">Cancel</button>
+        <button id="confirm-paste-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">Process Text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Documents (Profile Settings) Modal -->
+  <div id="docs-modal" class="fixed inset-0 bg-black/50 hidden z-[55]">
+    <div class="absolute inset-0" id="docs-modal-bg"></div>
+    <div class="relative z-10 max-w-4xl mx-auto my-10 bg-white rounded-lg shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-semibold">My Documents</h3>
+        <button id="docs-close" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-4">
+        <div id="docs-list" class="text-sm text-gray-600">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div id="profile-modal" class="fixed inset-0 bg-black/50 hidden z-[56]">
+    <div class="absolute inset-0" id="profile-modal-bg"></div>
+    <div class="relative z-10 max-w-3xl mx-auto my-12 bg-white rounded-lg shadow-xl max-h-[85vh] overflow-y-auto">
+      <div class="px-5 py-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Profile</h3>
+        <button id="profile-close" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="p-5 grid md:grid-cols-3 gap-4">
+        <div class="md:col-span-1">
+          <div class="w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center text-white text-xl">
+            <span id="prof-modal-initials">--</span>
+          </div>
+          <div class="mt-3">
+            <p id="prof-modal-name" class="font-medium">—</p>
+            <p id="prof-modal-email" class="text-sm text-gray-500 break-all">—</p>
+          </div>
+          <div class="mt-4 text-sm text-gray-700 space-y-1">
+            <p>Documents: <span id="prof-modal-docs">0</span></p>
+            <p>Summaries: <span id="prof-modal-sums">0</span></p>
+          </div>
+        </div>
+        <div class="md:col-span-2">
+          <h4 class="font-semibold mb-2">My Summaries</h4>
+          <div id="prof-summaries" class="text-sm text-gray-600 border rounded max-h-[60vh] overflow-y-auto divide-y">
+            <div class="p-3">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Removed custom PDF overlay; PDFs open in browser default viewer -->
+
+  <div id="toast" class="toast">Copied to clipboard</div>
+
+  <script>
+    // Auth guard and profile
+    let currentUser;
+    async function ensureSession(){
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { window.location.href = './index.html'; return null; }
+      currentUser = session.user;
+      return session;
+    }
+
+  let currentDocPath = null, currentDocExt = null;
+  async function loadRecent(){
+      const list = document.getElementById('recent-list');
+      const { data, error } = await supabase
+        .from('documents')
+        .select('id,title,file_path,created_at,size')
+        .order('created_at', { ascending: false })
+        .limit(15);
+      if (error) { list.textContent = 'Failed to load documents.'; return; }
+      if (!data || !data.length) { list.textContent = 'No documents yet.'; return; }
+      list.innerHTML = '';
+      data.forEach(row => {
+        const el = document.createElement('div');
+        el.className = 'document-card bg-gray-50 p-3 rounded-lg cursor-pointer transition-all duration-200';
+        el.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <i class="fas fa-file-alt text-blue-500 mr-3"></i>
+              <div>
+                <p class="font-medium">${row.title || 'Untitled'}</p>
+                <p class="text-xs text-gray-500">${new Date(row.created_at).toLocaleString()} • ${(row.size||0)} bytes</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-path="${row.file_path}" class="open-doc px-2 py-1 text-sm border rounded">Open</button>
+              <button data-path="${row.file_path}" class="download-doc px-2 py-1 text-sm border rounded">Download</button>
+            </div>
+          </div>`;
+        el.dataset.path = row.file_path;
+        list.appendChild(el);
+      });
+  // Helper to open in View tab / PDF overlay
+    async function openInView(path){
+        try {
+          const textArea = document.getElementById('document-text');
+          const highlightView = document.getElementById('highlight-view');
+          const iframe = document.getElementById('doc-frame');
+      const sumBtn = document.getElementById('summarize-btn');
+          const name = path.split('/').pop() || '';
+          const ext = name.toLowerCase().split('.').pop();
+      currentDocPath = path; currentDocExt = ext;
+
+          // Reset views
+          textArea.classList.add('hidden');
+          highlightView.classList.add('hidden');
+          iframe.classList.add('hidden');
+      // disable summarize until ready
+      sumBtn.disabled = true; sumBtn.classList.add('opacity-50','cursor-not-allowed');
+
+          if (/^(pdf)$/i.test(ext)) {
+            // Do not embed the PDF; prompt the user to summarize
+            textArea.value = `Selected PDF: ${name}\nClick "Generate Summary" to analyze.`;
+            textArea.classList.remove('hidden');
+            sumBtn.disabled = false; sumBtn.classList.remove('opacity-50','cursor-not-allowed');
+          } else if (/^(doc|docx)$/i.test(ext)) {
+            // Use Office Online Viewer to display doc/docx
+            const { data, error } = await supabase.storage.from('documents').createSignedUrl(path, 300);
+            if (error) { console.error(error); showToast('Open failed'); return; }
+            const viewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(data.signedUrl)}`;
+            iframe.src = viewUrl;
+            iframe.classList.remove('hidden');
+            // For docs we don't extract; enable summarization only if textarea has text (from pasted text). Keep disabled.
+          } else {
+            // Download and show as text if possible
+            const { data: blob, error } = await supabase.storage.from('documents').download(path);
+            if (error) { console.error(error); showToast('Open failed'); return; }
+            const textLike = (blob && (blob.type?.startsWith('text/') || /^(txt|md|csv|json|log)$/i.test(ext)));
+            if (textLike) {
+              const text = await blob.text();
+              textArea.value = text;
+              textArea.classList.remove('hidden');
+              sumBtn.disabled = false; sumBtn.classList.remove('opacity-50','cursor-not-allowed');
+            } else {
+              textArea.value = `Selected file: ${name}\n(Preview not supported here. Use Download to get the file.)`;
+              textArea.classList.remove('hidden');
+            }
+          }
+          // switch to View tab
+          document.querySelector('.tab-button[data-tab="view"]').click();
+        } catch (e) {
+          console.error(e);
+          showToast('Could not open document');
+        }
+      }
+
+      // Wire click on card to open in Full Text
+      list.querySelectorAll('.document-card').forEach(card => card.addEventListener('click', async () => {
+        const path = card.dataset.path;
+        if (path) await openInView(path);
+      }));
+
+      // Wire actions
+      list.querySelectorAll('.open-doc').forEach(btn => btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const path = btn.getAttribute('data-path');
+        await openInView(path);
+      }));
+      list.querySelectorAll('.download-doc').forEach(btn => btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const path = btn.getAttribute('data-path');
+        const { data, error } = await supabase.storage.from('documents').download(path);
+        if (error) { showToast('Download failed'); return; }
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url; a.download = path.split('/').pop(); a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      }));
+    }
+
+    (async () => {
+      const session = await ensureSession();
+      if (!session) return;
+      const user = currentUser;
+      const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+      const email = user.email || '';
+      document.getElementById('profile-initials').textContent = initialsFrom(name||email);
+      document.getElementById('profile-name').textContent = name;
+      document.getElementById('profile-email').textContent = email;
+      document.getElementById('logoutBtn').addEventListener('click', async () => { await supabase.auth.signOut(); window.location.href = './index.html'; });
+      // counts
+      try {
+        const { count: dcount } = await supabase.from('documents').select('*', { count:'exact', head:true });
+        if (typeof dcount === 'number') document.getElementById('profile-doc-count').textContent = String(dcount);
+      } catch {}
+      try {
+        const { count: scount, error: scErr } = await supabase.from('summaries').select('*', { count:'exact', head:true });
+        if (scErr) {
+          if (!window.__sumWarned) { showToast('Summaries not ready. Run supabase_setup.sql'); window.__sumWarned = true; }
+        } else if (typeof scount === 'number') {
+          document.getElementById('profile-sum-count').textContent = String(scount);
+        }
+      } catch(e){ if (!window.__sumWarned) { window.__sumWarned = true; showToast('Summaries not ready. Run supabase_setup.sql'); } }
+      loadRecent();
+    })();
+
+    // API health indicator
+    const apiStatusEl = document.getElementById('api-status');
+    async function pingApi(){
+      try {
+        const controller = new AbortController();
+        const to = setTimeout(()=>controller.abort(), 2500);
+  const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+        clearTimeout(to);
+        if (res.ok) {
+          apiStatusEl.textContent = 'API: Online';
+          apiStatusEl.className = 'ml-4 text-sm px-2 py-1 rounded-full bg-green-100 text-green-700';
+        } else throw new Error('bad');
+      } catch {
+        apiStatusEl.textContent = 'API: Offline';
+        apiStatusEl.className = 'ml-4 text-sm px-2 py-1 rounded-full bg-red-100 text-red-700';
+      }
+    }
+    pingApi();
+    setInterval(pingApi, 5000);
+
+    // Utility: toast
+    function showToast(msg){
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 1400);
+    }
+
+    // Tabs
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        button.classList.add('active');
+        document.getElementById(button.getAttribute('data-tab')).classList.add('active');
+      });
+    });
+
+    // Upload menu
+    document.getElementById('file-upload-btn').addEventListener('click', () => document.getElementById('file-input').click());
+    document.getElementById('paste-text-btn').addEventListener('click', () => document.getElementById('paste-modal').classList.remove('hidden'));
+    document.getElementById('close-paste-modal').addEventListener('click', () => document.getElementById('paste-modal').classList.add('hidden'));
+    document.getElementById('cancel-paste-btn').addEventListener('click', () => document.getElementById('paste-modal').classList.add('hidden'));
+    async function saveDocument(title, fileBlob, mime){
+      const uid = currentUser.id;
+      const filename = `${Date.now()}_${title.replace(/[^a-z0-9._-]+/gi,'_')}` || `${Date.now()}.txt`;
+      const storagePath = `${uid}/${filename}`;
+      const { error: upErr } = await supabase.storage.from('documents').upload(storagePath, fileBlob, { contentType: mime, upsert: false });
+      if (upErr) { showToast('Upload failed'); return null; }
+      const { error: insErr } = await supabase.from('documents').insert({ user_id: uid, title, file_path: storagePath, mime_type: mime, size: fileBlob.size });
+      if (insErr) { showToast('Save metadata failed'); return null; }
+      return storagePath;
+    }
+
+    document.getElementById('confirm-paste-btn').addEventListener('click', async () => {
+      const text = document.getElementById('paste-text-area').value;
+      if (!text.trim()) { showToast('Please paste some text'); return; }
+      // remember pasted context for auto-save after summarization
+      const ts = new Date();
+      window.__pastedContext = {
+        active: true,
+        title: `Pasted ${ts.toLocaleDateString()} ${ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`,
+        source: text.slice(0, 120000)
+      };
+      // Save to Supabase as .txt
+      const blob = new Blob([text], { type: 'text/plain' });
+      const saved = await saveDocument('pasted_document.txt', blob, 'text/plain');
+      if (saved) showToast('Saved');
+      document.getElementById('document-text').value = text;
+      const sumBtn = document.getElementById('summarize-btn'); sumBtn.disabled = false; sumBtn.classList.remove('opacity-50','cursor-not-allowed');
+      document.getElementById('paste-modal').classList.add('hidden');
+  // Switch to View tab
+  document.querySelector('.tab-button[data-tab="view"]').click();
+      loadRecent();
+    });
+
+    // File input handling
+    document.getElementById('file-input').addEventListener('change', async function(e){
+      const file = e.target.files[0];
+      if (!file) return;
+      // Upload to Supabase Storage
+      const saved = await saveDocument(file.name, file, file.type || 'application/octet-stream');
+      if (saved) showToast('Uploaded');
+      // For text files, preview
+    if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          document.getElementById('document-text').value = reader.result;
+          document.querySelector('.tab-button[data-tab="view"]').click();
+      const sumBtn = document.getElementById('summarize-btn'); sumBtn.disabled = false; sumBtn.classList.remove('opacity-50','cursor-not-allowed');
+        };
+        reader.readAsText(file);
+      } else {
+        document.getElementById('document-text').value = `Selected file: ${file.name}\n(Preview not supported here. Uploaded to your account.)`;
+        document.querySelector('.tab-button[data-tab="view"]').click();
+      }
+      // reset input so same file can be reselected
+      e.target.value = '';
+      loadRecent();
+    });
+
+    // Search and highlight helpers
+    const searchBar = document.getElementById('search-bar');
+    const searchInput = document.getElementById('search-input');
+    const searchCount = document.getElementById('search-count');
+    const textArea = document.getElementById('document-text');
+    const highlightView = document.getElementById('highlight-view');
+    let matches = [], matchIndex = -1;
+
+    function updateMatches(){
+      const q = searchInput.value;
+      const text = textArea.value;
+      matches = [];
+      matchIndex = -1;
+      if (q) {
+        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          matches.push({ start: m.index, end: m.index + m[0].length });
+          if (re.lastIndex === m.index) re.lastIndex++; // avoid zero-length loops
+        }
+      }
+      searchCount.textContent = matches.length ? `${matches.length} matches` : '';
+    }
+
+    function selectMatch(dir){
+      if (!matches.length) return;
+      matchIndex = (matchIndex + (dir || 1) + matches.length) % matches.length;
+      const m = matches[matchIndex];
+      textArea.focus();
+      textArea.setSelectionRange(m.start, m.end);
+    }
+
+    document.getElementById('search-toggle').addEventListener('click', () => {
+      searchBar.classList.toggle('hidden');
+      if (!searchBar.classList.contains('hidden')) searchInput.focus();
+    });
+    searchInput.addEventListener('input', () => updateMatches());
+    document.getElementById('find-next').addEventListener('click', () => { if (!matches.length) updateMatches(); selectMatch(1); });
+    document.getElementById('find-prev').addEventListener('click', () => { if (!matches.length) updateMatches(); selectMatch(-1); });
+
+    // Highlight toggle: render matches as <mark> in a view div
+    document.getElementById('highlight-toggle').addEventListener('click', () => {
+      const q = searchInput.value;
+      const text = textArea.value;
+      if (!q) { showToast('Set a search term first'); return; }
+      const safeQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(safeQ, 'gi');
+      const html = text.replace(re, (m) => `<mark class="bg-yellow-200">${m}</mark>`).replace(/\n/g, '<br/>');
+      highlightView.innerHTML = html;
+      highlightView.classList.toggle('hidden');
+      textArea.classList.toggle('hidden');
+    });
+
+    // Summarization (simple client-side)
+    function summarize(text){
+      const original = (text || '').trim();
+      if (!original) return '';
+      const cleaned = original.replace(/\s+/g, ' ').trim();
+      const sentences = cleaned.split(/(?<=[.!?])\s+/);
+      const scored = sentences
+        .map((s, idx) => ({ s, idx, score: Math.min(s.length, 200) }))
+        .filter(x => x.s.split(' ').length > 4);
+      const top = scored
+        .sort((a,b)=>b.score-a.score)
+        .slice(0, Math.min(5, scored.length))
+        .sort((a,b)=>a.idx-b.idx)
+        .map(x=>x.s);
+      // Preserve readability with paragraph breaks
+      return top.join('\n\n');
+    }
+
+    let __lastSummaryText = '';
+    function showSummary(text){
+      const content = document.getElementById('summary-content');
+      const info = document.getElementById('summary-info');
+      content.innerHTML = '';
+      if (!text) {
+        info.classList.add('hidden');
+        __lastSummaryText = '';
+        document.getElementById('save-btn').disabled = true;
+        return;
+      }
+      info.classList.remove('hidden');
+      const html = markdownLiteToHtml(text||'');
+      content.innerHTML = `<h3 class="text-lg font-semibold mb-2">Key Summary</h3><div class="leading-relaxed">${html}</div>`;
+      // enable export
+      document.getElementById('export-btn').disabled = false;
+      // manage save state based on duplication
+      __lastSummaryText = text || '';
+      updateSaveButtonForCurrentSummary();
+  // Cache summary for chatbot
+  window.__currentSummary = text || '';
+    }
+
+    async function updateSaveButtonForCurrentSummary(){
+      const btn = document.getElementById('save-btn');
+      const sum = __lastSummaryText || '';
+      if (!sum.trim()) { btn.disabled = true; btn.title = ''; return; }
+      try {
+        const hash = await sha256(sum);
+        const { data, error } = await supabase
+          .from('summaries')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .eq('summary_hash', hash)
+          .limit(1);
+        if (!error && data && data.length) {
+          btn.disabled = true; btn.title = 'Already saved';
+        } else {
+          btn.disabled = false; btn.title = '';
+        }
+      } catch { btn.disabled = false; btn.title = ''; }
+    }
+
+    // Render a richer subset of Markdown-ish patterns for nicer summaries
+    function markdownLiteToHtml(input){
+      const escape = (s) => s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const renderInline = (s) => {
+        let out = escape(s);
+        // bold **text**
+        out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        return out;
+      };
+      const lines = (input || '').split(/\r?\n/);
+      let html = '';
+      let inUL = false, inOL = false;
+      const closeLists = () => { if (inUL) { html += '</ul>'; inUL = false; } if (inOL) { html += '</ol>'; inOL = false; } };
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const line = raw.trim();
+        if (!line) { closeLists(); continue; }
+
+        // Ordered list: 1. Item
+        const mOL = line.match(/^(\d+)\.\s+(.*)/);
+        if (mOL) {
+          if (!inOL) { closeLists(); html += '<ol class="list-decimal ml-5 my-2">'; inOL = true; }
+          html += `<li>${renderInline(mOL[2])}</li>`;
+          continue;
+        }
+
+        // Unordered list: - Item or * Item
+        const mUL = line.match(/^[\-*]\s+(.*)/);
+        if (mUL) {
+          if (!inUL) { closeLists(); html += '<ul class="list-disc ml-5 my-2">'; inUL = true; }
+          html += `<li>${renderInline(mUL[1])}</li>`;
+          continue;
+        }
+
+        // Hash headings: #, ## -> render as section headers
+        const mH = line.match(/^(#{1,6})\s+(.*)$/);
+        if (mH) {
+          closeLists();
+          const title = renderInline(mH[2]);
+          html += `<h4 class="font-semibold mt-5 mb-2">${title}</h4>`;
+          continue;
+        }
+
+        // Title-like lines ending with ':' become section headers
+        if (line.endsWith(':') && line.length <= 80) {
+          closeLists();
+          const title = renderInline(line.replace(/:$/, ''));
+          html += `<h4 class="font-semibold mt-5 mb-2">${title}</h4>`;
+          continue;
+        }
+
+        // Clean title lines (e.g., "Important Definitions") as headers when next line is content/list
+        const isCleanTitle = /^[A-Z][A-Za-z0-9 ]{2,60}$/.test(line);
+        if (isCleanTitle) {
+          const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+          const nextLooksLikeContent = !!next && !/^\s*$/.test(next);
+          if (nextLooksLikeContent) {
+            closeLists();
+            html += `<h4 class=\"font-semibold mt-5 mb-2\">${renderInline(line)}</h4>`;
+            continue;
+          }
+        }
+
+        // Definition block: a standalone **Term** line followed by description line
+        const mDef = line.match(/^\*\*(.+?)\*\*$/);
+        if (mDef && (i + 1 < lines.length) && lines[i + 1].trim()) {
+          closeLists();
+          const desc = renderInline(lines[i + 1]);
+          html += `<p class="font-semibold mb-0">${renderInline(mDef[1])}</p>`;
+          html += `<p class="text-gray-600 mb-3">${desc}</p>`;
+          i += 1; // consume next line
+          continue;
+        }
+
+        // Meta footer line starting with em dash
+        if (line.startsWith('— ')) {
+          closeLists();
+          html += `<div class="mt-4 text-sm text-gray-600 border-t pt-3">${renderInline(line.slice(2))}</div>`;
+          continue;
+        }
+
+        // Default paragraph
+        closeLists();
+        html += `<p class="mb-3">${renderInline(line)}</p>`;
+      }
+      closeLists();
+      return html;
+    }
+
+    // Python API summarization
+    async function summarizeViaAPI(text){
+      const res = await fetch(`${API_BASE}/analyze-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      return data;
+    }
+
+  document.getElementById('summarize-btn').addEventListener('click', async (ev) => {
+      if (ev.currentTarget.disabled) { showToast('Preparing text…'); return; }
+      const text = textArea.value;
+      if (!text.trim() && !(currentDocExt === 'pdf' && currentDocPath)) { showToast('Add some text or open a PDF'); return; }
+      let sum = '';
+      let sourceForSave = text;
+      try {
+        let result;
+        if (currentDocExt === 'pdf' && currentDocPath) {
+          showToast('Analyzing PDF via Python API…');
+          const { data: blob } = await supabase.storage.from('documents').download(currentDocPath);
+          if (!blob) { showToast('Unable to fetch PDF'); return; }
+          const fd = new FormData();
+          fd.append('file', new File([blob], currentDocPath.split('/').pop() || 'document.pdf', { type: 'application/pdf' }));
+          const res = await fetch(`${API_BASE}/analyze-pdf`, { method: 'POST', body: fd });
+          if (!res.ok) throw new Error('API error');
+          result = await res.json();
+          if (result && result.text) { sourceForSave = result.text; document.getElementById('document-text').value = result.text; }
+        } else {
+          showToast('Summarizing via Python API…');
+          result = await summarizeViaAPI(text);
+        }
+        console.log('API result:', result);
+        console.log('Summary from API:', result?.summary);
+        console.log('Structured from API:', result?.structured);
+        sum = result.summary || '';
+        if (!sum) {
+          console.warn('API returned empty summary, using fallback');
+          sum = summarize(sourceForSave || text);
+        }
+        // Optional: surface structured bits under the summary
+        if (result && result.structured) {
+          const s = result.structured;
+          if (Object.keys(s).length) {
+            const meta = Object.entries(s).filter(([k,v])=>v).map(([k,v])=>`${k}: ${v}`).slice(0,8).join(' | ');
+            if (meta) sum = sum + `\n\n— ${meta}`;
+          }
+        }
+      } catch(e){
+        console.error('API summarization failed:', e);
+        showToast('API not reachable. Using quick fallback.');
+        sum = summarize(sourceForSave || text);
+      }
+      showSummary(sum || 'Unable to produce a summary with the current input.');
+      document.querySelector('.tab-button[data-tab="summary"]').click();
+
+      // Save summary record (for pasted text, PDFs, or manual text)
+      try {
+        const ts = new Date();
+        const title = (window.__pastedContext && window.__pastedContext.active && window.__pastedContext.title)
+          || (currentDocPath && (currentDocPath.split('/').pop() || 'Document'))
+          || `Summary ${ts.toLocaleDateString()} ${ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+        const source = (window.__pastedContext && window.__pastedContext.active && window.__pastedContext.source)
+          || sourceForSave
+          || text;
+        const ok = await saveSummaryRecord(title, sum, source);
+        if (ok) {
+          const el = document.getElementById('profile-sum-count');
+          const n = parseInt(el.textContent || '0', 10);
+          if (!isNaN(n)) el.textContent = String(n + 1);
+          showToast('Saved to Summaries');
+          // Disable save for this summary
+          document.getElementById('save-btn').disabled = true;
+          document.getElementById('save-btn').title = 'Already saved';
+        }
+      } catch(e){ console.warn('Save after summarize failed', e); }
+      window.__pastedContext = { active: false };
+    });
+
+    // OCR + Gemini analysis for the current PDF using Python API
+    document.getElementById('ocr-analyze-btn').addEventListener('click', async () => {
+      if (currentDocExt !== 'pdf' || !currentDocPath) { showToast('Open a PDF first'); return; }
+      try {
+        showToast('Uploading PDF for OCR…');
+        // Download from storage then send to API as file upload
+        const { data: blob } = await supabase.storage.from('documents').download(currentDocPath);
+        if (!blob) { showToast('Failed to fetch PDF'); return; }
+        const fd = new FormData();
+        fd.append('file', new File([blob], currentDocPath.split('/').pop() || 'document.pdf', { type: 'application/pdf' }));
+  const res = await fetch(`${API_BASE}/analyze-pdf`, { method: 'POST', body: fd });
+  if (!res.ok) { showToast('OCR analyze failed'); return; }
+  const out = await res.json();
+  if (out.error) { showToast(out.error); return; }
+        if (out.text) {
+          document.getElementById('document-text').value = out.text;
+        }
+        if (out.summary) {
+          showSummary(out.summary);
+          document.querySelector('.tab-button[data-tab="summary"]').click();
+        } else {
+          showToast('OCR done. No summary produced.');
+        }
+      } catch(e){ console.error(e); showToast('OCR analyze failed'); }
+    });
+
+    // Export summary
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const content = document.getElementById('summary-content').innerText.trim();
+      if (!content) { showToast('No summary to export'); return; }
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'summary.txt'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    });
+
+  // Chatbot wiring
+    document.getElementById('qa-ask').addEventListener('click', async ()=>{
+      const q = document.getElementById('qa-input').value.trim();
+      if (!q) { showToast('Ask a question'); return; }
+      const ansEl = document.getElementById('qa-answer');
+      ansEl.textContent = 'Thinking…';
+      try{
+        const body = {
+          question: q,
+          summary: window.__currentSummary || (__lastSummaryText || ''),
+          source_text: document.getElementById('document-text').value || ''
+        };
+        const res = await fetch(`${API_BASE}/chatbot/ask`, {
+          method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        ansEl.textContent = data.answer || data.error || 'No answer';
+      } catch(e){ ansEl.textContent = 'Failed to ask. Check API.'; }
+    });
+
+    // Save summary explicitly
+    async function saveSummaryRecord(title, summary, sourceText){
+      try {
+        if (!summary || !summary.trim()) { showToast('No summary to save'); return false; }
+        // client-side duplicate check (best-effort)
+        const hash = await sha256(summary || '');
+        const { data: existing } = await supabase
+          .from('summaries')
+          .select('id')
+          .eq('user_id', currentUser.id)
+          .eq('summary_hash', hash)
+          .limit(1);
+        if (existing && existing.length) { showToast('Duplicate summary ignored'); return false; }
+        const { error } = await supabase.from('summaries').insert({
+          user_id: currentUser.id,
+          title: title || 'Summary',
+          source_text: (sourceText||'').slice(0,120000),
+          summary: (summary||'').slice(0,120000),
+          summary_hash: hash
+        });
+        if (error) { showToast('Save failed: ' + (error.message || 'unknown')); return false; }
+        return true;
+      } catch(e){ showToast('Save failed'); return false; }
+    }
+    document.getElementById('save-btn').addEventListener('click', async () => {
+      const sum = __lastSummaryText || '';
+      if (!sum.trim()) { showToast('No summary to save'); return; }
+      const ts = new Date();
+      const title = (currentDocPath && (currentDocPath.split('/').pop() || 'Document'))
+        || (window.__pastedContext && window.__pastedContext.title)
+        || `Summary ${ts.toLocaleDateString()} ${ts.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+      const source = document.getElementById('document-text').value || (window.__pastedContext && window.__pastedContext.source) || '';
+      const ok = await saveSummaryRecord(title, sum, source);
+      if (ok) {
+        const el = document.getElementById('profile-sum-count');
+        const n = parseInt(el.textContent || '0', 10);
+        if (!isNaN(n)) el.textContent = String(n + 1);
+        showToast('Saved to Summaries');
+        // Disable save for this summary
+        document.getElementById('save-btn').disabled = true;
+        document.getElementById('save-btn').title = 'Already saved';
+      }
+    });
+
+    // Share summary
+    document.getElementById('share-btn').addEventListener('click', async () => {
+      const content = document.getElementById('summary-content').innerText.trim();
+      if (!content) { showToast('No summary to share'); return; }
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Summary', text: content }); }
+        catch(_){}
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(content);
+        showToast('Summary copied to clipboard');
+      } else {
+        showToast('Sharing not supported');
+      }
+    });
+
+    // =====================
+    // PDF text extraction for summarization (PDF.js)
+    // =====================
+    let pdfDoc = null;
+    if (window['pdfjsLib']) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+    }
+  async function extractPdfTextToTextarea(blob){
+      try {
+        const buf = await blob.arrayBuffer();
+        const task = pdfjsLib.getDocument({ data: new Uint8Array(buf) });
+        const doc = await task.promise;
+        let out = '';
+        for (let p = 1; p <= doc.numPages; p++) {
+          const page = await doc.getPage(p);
+          const textContent = await page.getTextContent();
+          const text = textContent.items.map(it => it.str).join(' ');
+          out += text + '\n\n';
+        }
+    const finalText = out.trim();
+    document.getElementById('document-text').value = finalText;
+    return finalText;
+      } catch(e){ console.warn('PDF text extract failed', e); }
+    }
+
+    // =====================
+    // Documents Manager (Settings)
+    // =====================
+    const docsModal = document.getElementById('docs-modal');
+    const docsList = document.getElementById('docs-list');
+    document.getElementById('settings-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      openDocsManager();
+    });
+    document.getElementById('docs-close').addEventListener('click', () => docsModal.classList.add('hidden'));
+    document.getElementById('docs-modal-bg').addEventListener('click', () => docsModal.classList.add('hidden'));
+
+    async function openDocsManager(){
+      docsModal.classList.remove('hidden');
+      docsList.textContent = 'Loading…';
+      const { data, error } = await supabase
+        .from('documents')
+        .select('id,title,file_path,created_at,size')
+        .order('created_at', { ascending: false });
+      if (error) { console.error(error); docsList.textContent = 'Failed to load documents.'; return; }
+      if (!data || !data.length) { docsList.textContent = 'No documents yet.'; return; }
+      const rows = data.map(row => {
+        const date = new Date(row.created_at).toLocaleString();
+        const size = (row.size||0);
+        return `<div class="flex items-center justify-between px-3 py-2 border-b last:border-0">
+          <div class="min-w-0">
+            <p class="font-medium truncate">${row.title || 'Untitled'}</p>
+            <p class="text-xs text-gray-500">${date} • ${size} bytes</p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button class="docs-open px-2 py-1 text-sm border rounded" data-path="${row.file_path}">Open</button>
+            <button class="docs-download px-2 py-1 text-sm border rounded" data-path="${row.file_path}">Download</button>
+            <button class="docs-delete px-2 py-1 text-sm border rounded text-red-600" data-id="${row.id}" data-path="${row.file_path}">Delete</button>
+          </div>
+        </div>`;
+      }).join('');
+      docsList.innerHTML = rows;
+      // Actions
+      docsList.querySelectorAll('.docs-open').forEach(b=>b.addEventListener('click', async (e)=>{
+        const p = e.currentTarget.getAttribute('data-path');
+        docsModal.classList.add('hidden');
+        await openInView(p);
+      }));
+      docsList.querySelectorAll('.docs-download').forEach(b=>b.addEventListener('click', async (e)=>{
+        const p = e.currentTarget.getAttribute('data-path');
+        const { data, error } = await supabase.storage.from('documents').download(p);
+        if (error) { console.error(error); showToast('Download failed'); return; }
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a'); a.href = url; a.download = p.split('/').pop(); a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      }));
+      docsList.querySelectorAll('.docs-delete').forEach(b=>b.addEventListener('click', async (e)=>{
+        const id = e.currentTarget.getAttribute('data-id');
+        const p = e.currentTarget.getAttribute('data-path');
+        if (!confirm('Delete this file permanently?')) return;
+        const { error: sErr } = await supabase.storage.from('documents').remove([p]);
+        if (sErr) { console.error(sErr); showToast('Delete failed'); return; }
+        const { error: dErr } = await supabase.from('documents').delete().eq('id', id);
+        if (dErr) { console.error(dErr); showToast('Delete failed'); return; }
+        showToast('Deleted');
+        openDocsManager();
+        loadRecent();
+      }));
+    }
+
+    // =====================
+    // Profile modal
+    // =====================
+    const profileModal = document.getElementById('profile-modal');
+    const profList = document.getElementById('prof-summaries');
+    function renderProfileBasics(){
+      const user = currentUser;
+      const name = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+      const email = user.email || '';
+      document.getElementById('prof-modal-initials').textContent = initialsFrom(name||email);
+      document.getElementById('prof-modal-name').textContent = name;
+      document.getElementById('prof-modal-email').textContent = email;
+      // mirror counts from header if present
+      document.getElementById('prof-modal-docs').textContent = document.getElementById('profile-doc-count').textContent || '0';
+      document.getElementById('prof-modal-sums').textContent = document.getElementById('profile-sum-count').textContent || '0';
+    }
+    async function openProfile(){
+      renderProfileBasics();
+      profileModal.classList.remove('hidden');
+      profList.innerHTML = '<div class="p-3">Loading…</div>';
+      try {
+        const { data, error } = await supabase
+          .from('summaries')
+          .select('id,title,created_at,summary,source_text,user_id')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false })
+          .limit(25);
+        if (error) { 
+          const msg = (error && (error.message || error.details || String(error))) || 'unknown error';
+          profList.innerHTML = `<div class="p-3">Failed to load summaries.<div class=\"text-xs text-gray-500 mt-1\">${msg}</div></div>`; 
+          return; 
+        }
+        if (!data || !data.length) { profList.innerHTML = '<div class="p-3">No summaries yet.</div>'; return; }
+        // build a cache for quick view pasting
+        window.__summaryCache = Object.create(null);
+        data.forEach(r => { window.__summaryCache[r.id] = { title: r.title, summary: r.summary, source_text: r.source_text }; });
+        const rows = data.map(r => {
+          const date = new Date(r.created_at).toLocaleString();
+          const snip = (r.summary||'').slice(0, 180).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          return `<div class="border-b last:border-0 p-3">
+            <div class="flex items-center justify-between">
+              <div class="min-w-0">
+                <p class="font-medium truncate">${r.title || 'Untitled'}</p>
+                <p class="text-xs text-gray-500">${date}</p>
+              </div>
+              <div class="shrink-0 flex gap-2">
+                <button class="prof-view px-2 py-1 text-sm border rounded" data-id="${r.id}">View</button>
+                <button class="prof-download px-2 py-1 text-sm border rounded" data-id="${r.id}">Download</button>
+    <button class="prof-delete px-2 py-1 text-sm border rounded text-red-600" data-id="${r.id}">Delete</button>
+              </div>
+            </div>
+            <p class="text-xs text-gray-600 mt-2">${snip}</p>
+          </div>`;
+        }).join('');
+        profList.innerHTML = rows;
+        // actions
+        profList.querySelectorAll('.prof-view').forEach(b=>b.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-id');
+          const cache = (window.__summaryCache || {})[id];
+          if (!cache) { showToast('Open failed'); return; }
+          // Paste into main Summary tab
+          showSummary(cache.summary || '');
+          if (cache.source_text) {
+            document.getElementById('document-text').value = cache.source_text;
+          }
+          document.querySelector('.tab-button[data-tab="summary"]').click();
+          profileModal.classList.add('hidden');
+        }));
+        profList.querySelectorAll('.prof-download').forEach(b=>b.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-id');
+          const { data, error } = await supabase.from('summaries').select('title,summary').eq('id', id).single();
+          if (error || !data) { showToast('Download failed'); return; }
+          const text = `Title: ${data.title || 'Untitled'}\n\n${data.summary || ''}`;
+          const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = (data.title || 'summary') + '.txt'; a.click();
+          setTimeout(()=>URL.revokeObjectURL(url), 1000);
+        }));
+        profList.querySelectorAll('.prof-delete').forEach(b=>b.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-id');
+          if (!confirm('Delete this summary?')) return;
+          const { error } = await supabase.from('summaries').delete().eq('id', id);
+          if (error) { showToast('Delete failed: ' + (error.message || 'unknown')); return; }
+          // Decrement counter and refresh list
+          const el = document.getElementById('profile-sum-count');
+          const n = parseInt(el.textContent || '0', 10);
+          if (!isNaN(n) && n > 0) el.textContent = String(n - 1);
+          openProfile();
+          showToast('Deleted');
+        }));
+      } catch(e){ profList.innerHTML = '<div class="p-3">Failed to load summaries.</div>'; }
+    }
+
+    // small helper for hashing on client
+    async function sha256(message){
+      const enc = new TextEncoder();
+      const data = enc.encode(message || '');
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      const bytes = Array.from(new Uint8Array(digest));
+      return bytes.map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+    document.getElementById('profile-link').addEventListener('click', (e)=>{ e.preventDefault(); openProfile(); });
+    // Also open when clicking the avatar
+    document.querySelector('.profile .w-10').addEventListener('click', (e)=>{ e.preventDefault(); openProfile(); });
+    document.getElementById('profile-close').addEventListener('click', ()=> profileModal.classList.add('hidden'));
+    document.getElementById('profile-modal-bg').addEventListener('click', ()=> profileModal.classList.add('hidden'));
+  </script>
+</body>
+</html>

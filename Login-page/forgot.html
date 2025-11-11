@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forgot Password</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { primary: '#3b82f6', secondary: '#8b5cf6' },
+          fontFamily: { 'sans': ['Poppins', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    .card {
+      position: relative;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.08);
+      background-clip: padding-box;
+      border: 1.2px solid rgba(255,255,255,0.32);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      z-index: 1;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 100%);
+      border: 1px solid rgba(255,255,255,0.28);
+      mix-blend-mode: screen;
+    }
+    /* Adaptive text contrast inside the card */
+    .card h1, .card h2, .card p, .card label, .card a, .card .divider, .card .fa-lock {
+      mix-blend-mode: difference;
+      color: #ffffff;
+    }
+    .card input, .card button, .card .btn, .card .social-btn, .card input::placeholder {
+      mix-blend-mode: normal;
+      color: inherit;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#0b1220] via-[#0a1930] to-[#091222] min-h-screen flex items-center justify-start p-4 pl-6 md:pl-16 font-sans">
+  <div class="relative w-full max-w-5xl flex items-center justify-start">
+  <div class="card w-full max-w-md p-8">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">Reset your password</h1>
+    <p class="text-gray-600 mb-6">Enter your email and we'll send a reset link.</p>
+
+    <form id="resetRequestForm" class="space-y-4">
+      <div class="relative">
+        <i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input id="email" type="email" class="w-full pl-12 pr-4 h-12 border-2 rounded-xl focus:outline-none focus:ring-0 focus:border-secondary" placeholder="Email address" required/>
+      </div>
+      <button id="sendLinkBtn" class="w-full h-12 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold">Send reset link</button>
+    </form>
+
+  <p class="text-sm text-gray-600 mt-6">Remembered your password? <a href="./index.html" class="text-primary hover:text-secondary font-medium">Back to sign in</a></p>
+    </div>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+      console.error('Supabase config missing. Copy config.example.js to config.js and set your values.');
+    }
+    const supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+    const form = document.getElementById('resetRequestForm');
+    const emailEl = document.getElementById('email');
+    const btn = document.getElementById('sendLinkBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      btn.disabled = true; const original = btn.innerHTML; btn.innerHTML = 'Sending...';
+      try {
+    const redirectTo = new URL('./reset.html', window.location.href).href;
+        const { error } = await supabase.auth.resetPasswordForEmail(emailEl.value.trim(), { redirectTo });
+        if (error) throw error;
+        alert('If that email exists, a reset link has been sent. Check your inbox.');
+      } catch (err) {
+        alert(err.message || 'Failed to send reset link.');
+      } finally {
+        btn.disabled = false; btn.innerHTML = original;
+      }
+    });
+  </script>
+</body>
+</html>

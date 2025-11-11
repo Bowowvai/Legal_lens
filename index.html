@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting…</title>
+  <script>
+    (function(){
+      try {
+        // Preserve both query and hash (Supabase may return tokens in hash)
+        var target = './Login-page/index.html' + window.location.search + window.location.hash;
+        window.location.replace(target);
+      } catch (e) {
+        // Fallback: show a clickable link
+        document.addEventListener('DOMContentLoaded', function(){
+          var a = document.getElementById('fallback');
+          a.href = './Login-page/index.html' + window.location.search + window.location.hash;
+          a.textContent = a.href;
+        });
+      }
+    })();
+  </script>
+</head>
+<body>
+  <p>Redirecting to login… If you are not redirected, open <a id="fallback" href="./Login-page/index.html">Login</a>.</p>
+</body>
+</html>

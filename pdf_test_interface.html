@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Legal Analysis & Summarization</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            border: 2px dashed #3498db;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+        .upload-section:hover {
+            border-color: #2980b9;
+            background: #e3f2fd;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 30px;
+        }
+        .result-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .result-section h3 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .loading {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        .error {
+            color: #e74c3c;
+            background: #fdf2f2;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+            background: #f0f9f0;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+        }
+        .text-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .entity-tag {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            margin: 2px;
+            font-size: 12px;
+        }
+        .legal-term {
+            background: #e74c3c;
+        }
+        .risk-factor {
+            background: #f39c12;
+        }
+    </style>
+</head>
+<body>
+    <h1>📄 PDF Legal Analysis & Summarization</h1>
+    
+    <div class="container">
+        <h2>Upload PDF for Analysis</h2>
+        <div class="upload-section">
+            <p>📁 Drag and drop a PDF file here or click to browse</p>
+            <input type="file" id="pdfFile" accept=".pdf" />
+            <br>
+            <button onclick="analyzePDF()" id="analyzeBtn">🔍 Analyze PDF</button>
+        </div>
+    </div>
+
+    <div class="container" id="results" style="display: none;">
+        <h2>Analysis Results</h2>
+        <div id="loading" class="loading">⏳ Analyzing PDF... Please wait...</div>
+        
+        <div id="resultsContent" style="display: none;">
+            <!-- Basic Info -->
+            <div class="result-section">
+                <h3>📊 Document Information</h3>
+                <p><strong>Pages:</strong> <span id="pageCount"></span></p>
+                <p><strong>Images:</strong> <span id="imageCount"></span></p>
+                <p><strong>Text Length:</strong> <span id="textLength"></span> characters</p>
+                <p><strong>OCR Used:</strong> <span id="ocrUsed"></span></p>
+            </div>
+
+            <!-- Legal BERT Analysis -->
+            <div class="result-section" id="bertSection">
+                <h3>🤖 Legal BERT Analysis</h3>
+                <div id="bertContent"></div>
+            </div>
+
+            <!-- Summary -->
+            <div class="result-section" id="summarySection">
+                <h3>📝 Summary</h3>
+                <div id="summaryContent"></div>
+            </div>
+
+            <!-- Structured Data -->
+            <div class="result-section" id="structuredSection">
+                <h3>🏗️ Structured Data</h3>
+                <div id="structuredContent"></div>
+            </div>
+
+            <!-- Text Preview -->
+            <div class="result-section">
+                <h3>📄 Text Preview (First 1000 characters)</h3>
+                <div class="text-preview" id="textPreview"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFile = null;
+
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            currentFile = e.target.files[0];
+            if (currentFile) {
+                document.getElementById('analyzeBtn').disabled = false;
+                console.log('File selected:', currentFile.name);
+            }
+        });
+
+        async function analyzePDF() {
+            if (!currentFile) {
+                alert('Please select a PDF file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('lang', 'eng');
+
+            // Show results section and loading
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultsContent').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+
+            try {
+                const response = await fetch('http://localhost:8000/analyze-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                displayResults(result);
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').innerHTML = 
+                    `<div class="error">❌ Error analyzing PDF: ${error.message}</div>`;
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        }
+
+        function displayResults(result) {
+            // Basic Info
+            document.getElementById('pageCount').textContent = result.pages || 'Unknown';
+            document.getElementById('imageCount').textContent = result.images || 'Unknown';
+            document.getElementById('textLength').textContent = result.text ? result.text.length : 'Unknown';
+            document.getElementById('ocrUsed').textContent = result.used_ocr ? 'Yes' : 'No';
+
+            // Legal BERT Analysis
+            if (result.legal_bert_analysis && !result.legal_bert_analysis.error) {
+                const bert = result.legal_bert_analysis;
+                let bertHtml = `
+                    <p><strong>Document Type:</strong> ${bert.document_type?.specific_type || 'Unknown'}</p>
+                    <p><strong>Category:</strong> ${bert.document_type?.category || 'Unknown'}</p>
+                    <p><strong>Confidence:</strong> ${bert.document_type?.confidence || 'Unknown'}</p>
+                `;
+
+                if (bert.key_entities?.parties?.length > 0) {
+                    bertHtml += `<p><strong>Parties:</strong> ${bert.key_entities.parties.join(', ')}</p>`;
+                }
+
+                if (bert.key_entities?.amounts?.length > 0) {
+                    bertHtml += `<p><strong>Amounts:</strong> ${bert.key_entities.amounts.join(', ')}</p>`;
+                }
+
+                if (bert.legal_terms?.length > 0) {
+                    bertHtml += `<p><strong>Legal Terms:</strong> `;
+                    bert.legal_terms.forEach(term => {
+                        bertHtml += `<span class="entity-tag legal-term">${term}</span>`;
+                    });
+                    bertHtml += `</p>`;
+                }
+
+                if (bert.risk_factors?.length > 0) {
+                    bertHtml += `<p><strong>Risk Factors:</strong> `;
+                    bert.risk_factors.forEach(risk => {
+                        bertHtml += `<span class="entity-tag risk-factor">${risk}</span>`;
+                    });
+                    bertHtml += `</p>`;
+                }
+
+                document.getElementById('bertContent').innerHTML = bertHtml;
+                document.getElementById('bertSection').style.display = 'block';
+            } else {
+                document.getElementById('bertSection').style.display = 'none';
+            }
+
+            // Summary
+            if (result.summary) {
+                document.getElementById('summaryContent').innerHTML = 
+                    `<div class="success">${result.summary}</div>`;
+                document.getElementById('summarySection').style.display = 'block';
+            } else {
+                document.getElementById('summarySection').style.display = 'none';
+            }
+
+            // Structured Data
+            if (result.structured_data) {
+                const structured = result.structured_data;
+                let structuredHtml = '<ul>';
+                Object.entries(structured).forEach(([key, value]) => {
+                    if (value) {
+                        const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        structuredHtml += `<li><strong>${formattedKey}:</strong> ${value}</li>`;
+                    }
+                });
+                structuredHtml += '</ul>';
+                
+                document.getElementById('structuredContent').innerHTML = structuredHtml;
+                document.getElementById('structuredSection').style.display = 'block';
+            } else {
+                document.getElementById('structuredSection').style.display = 'none';
+            }
+
+            // Text Preview
+            if (result.text) {
+                const preview = result.text.substring(0, 1000);
+                document.getElementById('textPreview').textContent = preview + (result.text.length > 1000 ? '...' : '');
+            }
+
+            // Show results
+            document.getElementById('resultsContent').style.display = 'block';
+        }
+
+        // Drag and drop functionality
+        const uploadSection = document.querySelector('.upload-section');
+        
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.style.borderColor = '#2980b9';
+            uploadSection.style.background = '#e3f2fd';
+        });
+
+        uploadSection.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadSection.style.borderColor = '#3498db';
+            uploadSection.style.background = '#f8f9fa';
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.style.borderColor = '#3498db';
+            uploadSection.style.background = '#f8f9fa';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                document.getElementById('pdfFile').files = files;
+                currentFile = files[0];
+                document.getElementById('analyzeBtn').disabled = false;
+                console.log('File dropped:', currentFile.name);
+            }
+        });
+    </script>
+</body>
+</html>
+

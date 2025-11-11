@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            secondary: '#8b5cf6',
+            dark: '#1e293b',
+            light: '#f8fafc'
+          },
+          fontFamily: { 'sans': ['Poppins', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Stronger frosted glass effect */
+    .card {
+      position: relative;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.08); /* more transparent */
+      background-clip: padding-box;
+      border: 1.2px solid rgba(255,255,255,0.32); /* clear outline */
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 100%);
+      border: 1px solid rgba(255,255,255,0.28);
+      mix-blend-mode: screen;
+    }
+    /* Adaptive text: auto-invert against background while keeping controls readable */
+    .card h1, .card h2, .card p, .card label, .card a, .card .divider, .card .fa-lock { 
+      mix-blend-mode: difference; color: #ffffff; 
+    }
+    .card input, .card button, .card .btn, .card .social-btn, .card input::placeholder { 
+      mix-blend-mode: normal; color: inherit; 
+    }
+    input:focus, button:focus { outline: 2px solid rgba(139, 92, 246, 0.3); }
+    .divider { display:flex; align-items:center; text-align:center; color:#94a3b8; }
+    .divider::before, .divider::after { content:''; flex:1; border-bottom:1px solid #cbd5e1; }
+    .divider:not(:empty)::before { margin-right: 2em; }
+    .divider:not(:empty)::after { margin-left: 2em; }
+    .form-group { position: relative; margin-bottom: 1.5rem; }
+    .form-group i { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+    .input-field { padding-left: 3.5rem; height: 50px; border: 2px solid #e2e8f0; border-radius: 12px; transition: all .3s ease; }
+    .input-field:focus { border-color:#8b5cf6; box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2); }
+    .btn { transition: all .3s ease; border-radius: 12px; padding: .8rem 1.5rem; height: 50px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(0,0,0,.2); }
+    .social-btn { display:flex; align-items:center; justify-content:center; gap:10px; transition: all .3s ease; }
+    .social-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -5px rgba(0,0,0,.1); }
+    .toggle-password { position:absolute; right:1rem; top:50%; transform:translateY(-50%); cursor:pointer; }
+  /* removed wave background */
+    .animate-float { animation: floating 4s ease-in-out infinite; }
+    @keyframes floating { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-15px);} }
+
+  .card { z-index: 1; }
+  /* Top-left logo */
+  .brand { position: fixed; top: 1.25rem; left: 1.25rem; display: flex; align-items: center; gap: .5rem; z-index: 50; mix-blend-mode: normal; }
+  .brand img { height: 40px; width: 40px; object-fit: contain; border-radius: 0; box-shadow: none; filter: brightness(0) invert(1); }
+  .brand-title { color: #fff; font-weight: 700; letter-spacing: .3px; font-size: 1.1rem; }
+
+  /* Typewriter caret */
+  .caret::after { content: '|'; margin-left: 3px; animation: blink 1s steps(1, end) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-[#0b1220] via-[#0a1930] to-[#091222] min-h-screen flex items-center justify-center md:justify-end p-4 pr-6 md:pr-16 font-sans">
+  <!-- Top-left logo -->
+  <a href="./index.html" class="brand" aria-label="Home">
+    <img src="./law.png" alt="Logo">
+    <span class="brand-title">Themis Analytica</span>
+  </a>
+
+  <div class="relative w-full flex items-center justify-center md:justify-end gap-6 md:gap-10">
+  <!-- Auth error banner (shown only when an error is present) -->
+  <div id="auth-error" class="hidden absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-xl bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4"></div>
+  <!-- Typewriter area (shown on md+ screens) -->
+  <div class="hidden md:block mr-auto max-w-xl select-none ml-10 md:ml-16">
+    <h1 class="text-4xl font-semibold text-white/90 mb-3">Welcome</h1>
+    <p class="text-lg text-white/100">
+      <span id="typewriter" class="caret font-extrabold text-white"></span>
+    </p>
+  </div>
+  <div class="card w-full max-w-md animate-float">
+    <div class="p-8">
+      <div class="text-center mb-10">
+        <div class="bg-gradient-to-r from-primary to-secondary w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <i class="fas fa-lock text-white text-2xl"></i>
+        </div>
+        <h2 class="text-3xl font-bold text-white-800 mb-2">Welcome Back</h2>
+        <p class="text-gray-600">Sign in to continue to your account</p>
+      </div>
+
+      <button id="googleBtn" class="social-btn w-full mb-6 bg-white text-gray-700 border border-gray-200 font-medium rounded-xl py-3 px-4 transform transition duration-300 hover:shadow-md">
+        <img src="https://img.icons8.com/color/48/000000/google-logo.png" class="w-6 h-6" alt="Google logo">
+        <span>Continue with Google</span>
+      </button>
+
+      <div class="divider my-6 text-gray-400">or</div>
+
+      <form id="emailForm" class="space-y-4">
+        <div class="form-group">
+          <i class="fas fa-envelope"></i>
+          <input id="email" type="email" class="input-field w-full focus:ring-0 focus:border-primary pl-12 pr-4" placeholder="Email address" required>
+        </div>
+        <div class="form-group">
+          <i class="fas fa-lock"></i>
+          <input id="password" type="password" class="input-field w-full focus:ring-0 focus:border-primary pl-12 pr-10" placeholder="Password" required>
+          <span class="toggle-password text-gray-400" id="togglePwd">
+            <i class="fas fa-eye"></i>
+          </span>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <div class="flex items-center">
+            <input type="checkbox" id="remember" class="w-4 h-4 text-primary rounded focus:ring-0">
+            <label for="remember" class="ml-2 text-gray-700 text-sm">Remember me</label>
+          </div>
+          <a href="./forgot.html" class="text-primary hover:text-secondary transition text-sm font-medium">Forgot password?</a>
+        </div>
+
+        <button id="submitBtn" type="submit" class="btn w-full bg-gradient-to-r from-primary to-secondary text-white hover:from-blue-500 hover:to-purple-500 mt-4">
+          Sign In
+        </button>
+      </form>
+
+      <div class="mt-6 text-center">
+        <p class="text-gray-600">Don't have an account?
+          <a href="#" id="signupLink" class="font-medium text-primary hover:text-secondary transition">Create Account</a>
+        </p>
+      </div>
+  </div>
+  </div>
+  </div>
+
+  <!-- Config (copy config.example.js to config.js and fill values) -->
+  <script src="./config.js"></script>
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Ensure config values exist
+    if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+      console.error('Supabase config missing. Copy config.example.js to config.js and set your values.');
+    }
+  const supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  const HOME_URL = new URL('home.html', window.location.href).href;
+
+    const emailForm = document.getElementById('emailForm');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.getElementById('submitBtn');
+    const googleBtn = document.getElementById('googleBtn');
+    const togglePwd = document.getElementById('togglePwd');
+    const signupLink = document.getElementById('signupLink');
+
+    togglePwd.addEventListener('click', () => {
+      const icon = togglePwd.querySelector('i');
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      } else {
+        passwordInput.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      }
+    });
+
+    // Email/password login
+    emailForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      const original = submitBtn.innerHTML;
+      submitBtn.innerHTML = 'Signing in...';
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailInput.value.trim(),
+          password: passwordInput.value
+        });
+        if (error) throw error;
+        // Optionally persist session when "Remember me" is checked
+        if (document.getElementById('remember').checked) {
+          localStorage.setItem('sb_session', JSON.stringify(data.session));
+        } else {
+          sessionStorage.setItem('sb_session', JSON.stringify(data.session));
+        }
+  const redirect = new URL('home.html', window.location.href).href;
+  window.location.replace(redirect);
+      } catch (err) {
+        alert(err.message || 'Login failed.');
+      } finally {
+        submitBtn.innerHTML = original;
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Google OAuth login
+    googleBtn.addEventListener('click', async () => {
+      try {
+  // Return to the login page; session check will forward to home.html
+  const redirectTo = new URL('index.html', window.location.href).href;
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo }
+        });
+        if (error) throw error;
+        // Redirect handled by Supabase; on return, session will be set
+      } catch (err) {
+        alert(err.message || 'Google sign-in failed.');
+      }
+    });
+
+    // Convert Create Account link to email sign-up flow
+    signupLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value.trim();
+      const pwd = passwordInput.value;
+      if (!email || !pwd) {
+        alert('Enter email and password, then click Create Account again.');
+        return;
+      }
+      submitBtn.disabled = true;
+      const original = submitBtn.innerHTML;
+      submitBtn.innerHTML = 'Creating account...';
+      try {
+  const redirectTo = new URL('index.html', window.location.href).href;
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password: pwd,
+          options: { emailRedirectTo: redirectTo }
+        });
+        if (error) throw error;
+        alert('Sign-up successful. Check your email to confirm your address.');
+      } catch (err) {
+        alert(err.message || 'Sign-up failed.');
+      } finally {
+        submitBtn.innerHTML = original;
+        submitBtn.disabled = false;
+      }
+    });
+
+    // If redirected back from OAuth, supabase-js will have the session.
+    (async () => {
+      // Handle OAuth callback (PKCE) and finish session exchange if needed
+      try {
+        const currentUrl = new URL(window.location.href);
+        // Show any provider error to the user
+        const err = currentUrl.searchParams.get('error');
+        const errDesc = currentUrl.searchParams.get('error_description');
+        if (err) {
+          const box = document.getElementById('auth-error');
+          if (box) {
+            box.classList.remove('hidden');
+            box.textContent = decodeURIComponent(errDesc || err);
+          }
+        }
+        if (currentUrl.searchParams.get('code')) {
+          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (error) {
+            console.error('Auth exchange failed:', error);
+          } else {
+            // Clean query params from URL
+            window.history.replaceState({}, document.title, currentUrl.origin + currentUrl.pathname);
+            window.location.replace(HOME_URL);
+            return;
+          }
+        }
+
+        // Handle implicit/callback flow where tokens come back in the hash (#access_token=...)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          // Parse hash params into an object
+          const hash = window.location.hash.substring(1);
+          const params = Object.fromEntries(new URLSearchParams(hash).entries());
+          const access_token = params['access_token'];
+          const refresh_token = params['refresh_token'];
+          if (access_token && refresh_token) {
+            try {
+              const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+              if (error) {
+                console.error('setSession failed:', error);
+              } else {
+                // Clean the hash from the URL immediately (avoid leaking tokens)
+                window.history.replaceState({}, document.title, currentUrl.origin + currentUrl.pathname);
+                window.location.replace(HOME_URL);
+                return;
+              }
+            } catch (e) {
+              console.error('Error setting session from hash:', e);
+            }
+          }
+        }
+      } catch (e) { console.warn('OAuth exchange check skipped:', e); }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        window.location.replace(HOME_URL);
+      }
+    })();
+
+    // Also forward as soon as auth state changes
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        window.location.replace(HOME_URL);
+      }
+    });
+
+  // Typewriter removed
+  // Improved typewriter effect with variable speed and punctuation pauses
+  (function initTypewriter(){
+    const el = document.getElementById('typewriter');
+    if (!el) return;
+    const phrases = (Array.isArray(window.TYPEWRITER_TEXTS) && window.TYPEWRITER_TEXTS.length)
+      ? window.TYPEWRITER_TEXTS
+      : [
+        'Legal documents, simplified.',
+        'Translating legalese into plain English.',
+        'Your personal legal interpreter.',
+        'Bringing clarity to complex contracts.',
+        'Understand any legal document, instantly.',
+        'No more confusion. Just clarity.'
+      ];
+    let p = 0, i = 0, deleting = false;
+    const baseType = 55, baseErase = 35;
+    function nextDelay(ch, isDeleting){
+      const jitter = Math.random() * 40; // natural variance
+      let d = (isDeleting ? baseErase : baseType) + jitter;
+      if (!isDeleting && /[.,!?]/.test(ch)) d += 220; // slight pause after punctuation
+      return d;
+    }
+    function step(){
+      const text = phrases[p];
+      if (!deleting) {
+        el.textContent = text.slice(0, ++i);
+        if (i === text.length) {
+          deleting = true;
+          return setTimeout(step, 1200);
+        }
+      } else {
+        el.textContent = text.slice(0, --i);
+        if (i === 0) {
+          deleting = false;
+          p = (p + 1) % phrases.length;
+          return setTimeout(step, 400);
+        }
+      }
+      const ch = text[Math.max(0, i - 1)] || '';
+      setTimeout(step, nextDelay(ch, deleting));
+    }
+    step();
+  })();
+  </script>
+</body>
+</html>

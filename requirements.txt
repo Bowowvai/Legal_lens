@@ -1,0 +1,18 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+transformers==4.43.3
+torch>=2.0.0 ; platform_system != 'Darwin' or platform_machine != 'arm64'
+torch==2.3.0 ; platform_system == 'Darwin' and platform_machine == 'arm64' # Apple Silicon users can install torch via pip wheels
+pydantic==2.8.2
+pymupdf==1.24.9
+pillow==10.4.0
+pytesseract==0.3.10
+google-generativeai==0.7.2
+python-dotenv==1.0.1
+# OpenAI-compatible client (for GPT models)
+openai>=1.35.0
+# Lightweight embeddings for retrieval
+sentence-transformers==3.0.1
+# InLegalBERT for enhanced legal document understanding
+# Note: This model is large (~400MB). Install only if you want enhanced legal analysis.
+# pip install transformers[torch] should handle the law-ai/InLegalBERT model
